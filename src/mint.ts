@@ -1,56 +1,102 @@
-import { createMint, getOrCreateAssociatedTokenAccount, mintTo, transfer } from '@solana/spl-token';
-import { Connection, Keypair, PublicKey, clusterApiUrl } from '@solana/web3.js';
-import 'dotenv/config';
-import { decodeBase58 } from 'ethers';
+import { type Address, type KeyPairSigner, type Rpc, type SolanaRpcApi, generateKeyPairSigner } from '@solana/kit';
+import { getCreateAccountInstruction } from '@solana-program/system';
+import {
+  TOKEN_PROGRAM_ADDRESS,
+  findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
+  getInitializeMintInstruction,
+  getMintSize,
+  getMintToInstruction,
+  getTransferInstruction,
+} from '@solana-program/token';
+import type { SendTransaction } from './helpers.js';
 
-const fromWalletPrivateHex = decodeBase58(process.env.FROM_WALLET_PRIVATE_KEY as string).toString(16);
-// const toWalletPrivateHex = decodeBase58(process.env.TO_WALLET_PRIVATE_KEY as string).toString(16);
-const toWalletPublicKeyBase58 = process.env.TO_WALLET_PUBLIC_KEY as string;
+export interface MintParams {
+  rpc: Rpc<SolanaRpcApi>;
+  payer: KeyPairSigner;
+  toWalletAddress: Address;
+  sendTransaction: SendTransaction;
+}
 
-/**
- * This function contains following operations:
- * 1. Create a token
- * 2. Mint token to `fromWallet`
- * 3. Transfer token from `fromWallet` to `toWallet`
- */
-(async function main() {
-  // prepare wallets
-  const fromWallet = Keypair.fromSecretKey(Uint8Array.from(Buffer.from(fromWalletPrivateHex, 'hex')));
-  const toWalletPublicKey = new PublicKey(toWalletPublicKeyBase58);
+export interface MintResult {
+  mintAddress: Address;
+  fromAta: Address;
+  toAta: Address;
+  mintSignature: string;
+  transferSignature: string;
+}
 
-  // create your own fungible token with 9 decimals
-  const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-  const mint = await createMint(connection, fromWallet, fromWallet.publicKey, null, 9);
+export async function createAndMintToken({
+  rpc,
+  payer,
+  toWalletAddress,
+  sendTransaction,
+}: MintParams): Promise<MintResult> {
+  const mint = await generateKeyPairSigner();
+  const mintSize = getMintSize();
+  const mintRent = await rpc.getMinimumBalanceForRentExemption(BigInt(mintSize)).send();
 
-  // prepare token accounts
-  const fromTokenAccount = await getOrCreateAssociatedTokenAccount(connection, fromWallet, mint, fromWallet.publicKey);
-  const toTokenAccount = await getOrCreateAssociatedTokenAccount(connection, fromWallet, mint, toWalletPublicKey);
-  console.log('fromTokenAccount:', fromTokenAccount.address.toBase58());
-  console.log('toTokenAccount:', toTokenAccount.address.toBase58());
+  await sendTransaction(payer, [
+    getCreateAccountInstruction({
+      payer,
+      newAccount: mint,
+      space: mintSize,
+      lamports: mintRent,
+      programAddress: TOKEN_PROGRAM_ADDRESS,
+    }),
+    getInitializeMintInstruction({
+      mint: mint.address,
+      decimals: 9,
+      mintAuthority: payer.address,
+    }),
+  ]);
 
-  // mint token
-  {
-    const signature = await mintTo(
-      connection,
-      fromWallet,
-      mint,
-      fromTokenAccount.address,
-      fromWallet.publicKey,
-      100000000000n,
-    );
-    console.log('tx:', `https://solscan.io/tx/${signature}?cluster=devnet`);
-  }
+  const [fromAta] = await findAssociatedTokenPda({
+    owner: payer.address,
+    mint: mint.address,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
+  const [toAta] = await findAssociatedTokenPda({
+    owner: toWalletAddress,
+    mint: mint.address,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
 
-  // transfer token
-  {
-    const signature = await transfer(
-      connection,
-      fromWallet,
-      fromTokenAccount.address,
-      toTokenAccount.address,
-      fromWallet.publicKey,
-      50,
-    );
-    console.log('tx:', `https://solscan.io/tx/${signature}?cluster=devnet`);
-  }
-})();
+  const mintSignature = await sendTransaction(payer, [
+    getCreateAssociatedTokenIdempotentInstruction({
+      payer,
+      ata: fromAta,
+      owner: payer.address,
+      mint: mint.address,
+    }),
+    getMintToInstruction({
+      mint: mint.address,
+      token: fromAta,
+      mintAuthority: payer,
+      amount: 100_000_000_000n,
+    }),
+  ]);
+
+  const transferSignature = await sendTransaction(payer, [
+    getCreateAssociatedTokenIdempotentInstruction({
+      payer,
+      ata: toAta,
+      owner: toWalletAddress,
+      mint: mint.address,
+    }),
+    getTransferInstruction({
+      source: fromAta,
+      destination: toAta,
+      authority: payer,
+      amount: 50n,
+    }),
+  ]);
+
+  return {
+    mintAddress: mint.address,
+    fromAta,
+    toAta,
+    mintSignature,
+    transferSignature,
+  };
+}

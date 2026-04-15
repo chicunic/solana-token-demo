@@ -1,8 +1,10 @@
 {
-  "[typescript]": {
-    "editor.tabSize": 2
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "editor.tabSize": 2,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
   },
-  "prettier.printWidth": 120,
-  "prettier.trailingComma": "all",
-  "typescript.preferences.quoteStyle": "single"
+  "eslint.enable": true,
+  "prettier.requireConfig": true
 }

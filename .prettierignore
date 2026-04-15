@@ -1,0 +1,7 @@
+*
+!src/
+!test/
+!scripts/
+!*.json
+!*.js
+!*.ts

@@ -2,28 +2,39 @@
   "name": "solana-token-demo",
   "version": "0.0.1",
   "description": "Solana token demo",
-  "main": "src/app.ts",
-  "scripts": {
-    "format": "prettier --write \"src/**/*.ts\"",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\""
-  },
-  "author": "chicunic",
   "license": "MIT",
+  "author": "chicunic",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chicunic/solana-token-demo.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
+  "scripts": {
+    "check": "tsc -b tsconfig.build.json && eslint . && prettier --check .",
+    "fix": "eslint . --fix && prettier --write .",
+    "test": "vitest run",
+    "prepare": "husky"
+  },
   "dependencies": {
-    "@solana/spl-memo": "^0.2.3",
-    "@solana/spl-token": "^0.3.9",
-    "@solana/wallet-adapter-base": "^0.9.23",
-    "@solana/wallet-adapter-wallets": "^0.19.24",
-    "@solana/web3.js": "^1.87.7",
-    "ethers": "^6.9.1"
+    "@solana-program/memo": "^0.11.0",
+    "@solana-program/system": "^0.12.0",
+    "@solana-program/token": "^0.13.0",
+    "@solana/kit": "^6.8.0"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^6.15.0",
-    "@typescript-eslint/parser": "^6.15.0",
-    "dotenv": "^16.3.1",
-    "eslint": "^8.56.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.1.1",
-    "prettier": "^3.1.1"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.6.0",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.2",
+    "vitest": "^4.1.4"
   }
 }
